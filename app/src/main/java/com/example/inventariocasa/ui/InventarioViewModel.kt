@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 data class EstadoPantalla(
     val articulos: List<Articulo> = emptyList(),
@@ -23,6 +24,8 @@ data class EstadoPantalla(
     val error: String? = null
 ) {
     val porReponer: Int get() = articulos.count { it.hayQueReponer }
+
+    fun caducanPronto(hoy: LocalDate): Int = articulos.count { it.caducaPronto(hoy) }
 
     fun estaEnListaCompra(articulo: Articulo): Boolean =
         articulo.nombre.lowercase() in nombresEnListaCompra
@@ -37,6 +40,11 @@ class InventarioViewModel : ViewModel() {
 
     private val _avisos = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val avisos: SharedFlow<String> = _avisos.asSharedFlow()
+
+    // Para que una recarga que iba de camino no pise un cambio recién pintado:
+    // si mientras se pedían los datos alguien tocó algo, esa respuesta ya es vieja.
+    private var cambiosLocales = 0
+    private var escriturasEnCurso = 0
 
     init {
         // Sondeo sencillo en vez de websocket: lo que cambie desde la web o al finalizar
@@ -55,7 +63,9 @@ class InventarioViewModel : ViewModel() {
             return
         }
         try {
+            val cambiosAlPedir = cambiosLocales
             val foto = repositorio.cargar()
+            if (cambiosAlPedir != cambiosLocales || escriturasEnCurso > 0) return
             _estado.update {
                 it.copy(
                     articulos = foto.articulos,
@@ -128,12 +138,16 @@ class InventarioViewModel : ViewModel() {
     }
 
     private fun ejecutar(avisoAlTerminar: String? = null, accion: suspend () -> Unit) {
+        cambiosLocales++
+        escriturasEnCurso++
         viewModelScope.launch {
             try {
                 accion()
                 avisoAlTerminar?.let { _avisos.tryEmit(it) }
             } catch (e: Exception) {
                 _avisos.tryEmit(describir(e))
+            } finally {
+                escriturasEnCurso--
             }
             recargar()
         }
@@ -142,6 +156,8 @@ class InventarioViewModel : ViewModel() {
     private fun describir(e: Exception): String = when {
         e is ErrorSupabase && e.codigo == 404 ->
             "Falta crear la tabla del inventario en Supabase"
+        e is ErrorSupabase && e.codigo == 400 ->
+            "La base de datos no está al día: falta ejecutar el último schema.sql"
         e is ErrorSupabase && e.codigo == 409 ->
             "Ya hay un artículo con ese nombre"
         e is ErrorSupabase -> "El servidor ha rechazado el cambio (${e.codigo})"

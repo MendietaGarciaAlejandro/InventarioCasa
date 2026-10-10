@@ -8,12 +8,13 @@ Comparte base de datos (Supabase) con la app de la lista de la compra y con su w
 
 - Lista de artículos por categoría, con cantidad y dónde están (nevera, despensa…)
 - Tres estados por artículo: hay, queda poco, no hay
+- Fecha de caducidad opcional, con aviso cuando falta una semana o menos
 - Apuntar un artículo en la lista de la compra con un toque, o todo lo que falta de una vez
 - Filtro de "por reponer" y búsqueda
 
 ## Cómo se habla con la app de la compra
 
-- Al finalizar una compra, lo que estaba marcado entra solo en el inventario. Lo hace un trigger en la base de datos, así que la app de la compra no necesita saber que el inventario existe.
+- Al finalizar una compra, lo que estaba marcado entra solo en el inventario. Lo hace un trigger en la base de datos al borrarse un producto marcado. Quitar un producto de la lista sin haberlo comprado no cuenta: en ese caso se desmarca antes de borrarlo.
 - La app de la compra lee el inventario para avisar ("ya hay 2 en casa") al apuntar un producto y en el modo compras.
 - Desde aquí se escribe en la lista de la compra cuando algo se acaba.
 
@@ -24,6 +25,7 @@ Los productos se cruzan por nombre. Es el punto débil: "Leche" y "Leche entera"
 - **Sin base de datos local.** El inventario se toca en casa, con wifi. Ir directo a la API ahorra toda la sincronización, que en la app de la compra fue lo más delicado. A cambio, sin conexión no funciona.
 - **Sondeo cada 5 segundos en vez de websocket.** Suficiente para una pantalla que usa una persona, y no hay conexión que vigilar.
 - **Estados antes que cantidades exactas.** Nadie descuenta cada yogur. Marcar "queda poco" sí se hace.
+- **Una sola fecha de caducidad por artículo**, la de la unidad que antes caduca. Guardar una por unidad sería más exacto y nadie lo mantendría. Al acabarse el artículo la fecha se borra.
 
 ## Para compilar
 
@@ -38,6 +40,5 @@ La tabla `inventory` y el trigger están en el `schema.sql` del repositorio de l
 
 ## Pendiente
 
-- Código de barras, para dejar de depender del nombre
-- Caducidades
+- Código de barras, para dejar de depender del nombre (la columna ya existe en la base de datos)
 - Login: ahora mismo la base de datos está abierta con la clave anónima

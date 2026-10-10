@@ -58,10 +58,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.inventariocasa.modelo.Articulo
+import com.example.inventariocasa.modelo.AvisoCaducidad
 import com.example.inventariocasa.modelo.EstadoArticulo
 import com.example.inventariocasa.ui.tema.ColorHay
 import com.example.inventariocasa.ui.tema.ColorNoHay
 import com.example.inventariocasa.ui.tema.ColorQuedaPoco
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +72,8 @@ fun PantallaInventario(viewModel: InventarioViewModel) {
     val avisos = remember { SnackbarHostState() }
 
     var soloPorReponer by rememberSaveable { mutableStateOf(false) }
+    var soloCaducanPronto by rememberSaveable { mutableStateOf(false) }
+    val hoy = LocalDate.now()
     var busqueda by rememberSaveable { mutableStateOf("") }
     var mostrarAlta by remember { mutableStateOf(false) }
     var enEdicion by remember { mutableStateOf<Articulo?>(null) }
@@ -80,6 +84,7 @@ fun PantallaInventario(viewModel: InventarioViewModel) {
 
     val visibles = estado.articulos.filter { articulo ->
         (!soloPorReponer || articulo.hayQueReponer) &&
+            (!soloCaducanPronto || articulo.caducaPronto(hoy)) &&
             (busqueda.isBlank() || articulo.nombre.contains(busqueda.trim(), ignoreCase = true))
     }
     val porCategoria = visibles.groupBy { it.categoria }.toSortedMap(String.CASE_INSENSITIVE_ORDER)
@@ -129,25 +134,29 @@ fun PantallaInventario(viewModel: InventarioViewModel) {
         ) {
             estado.error?.let { BandaDeError(it) }
 
-            Row(
+            OutlinedTextField(
+                value = busqueda,
+                onValueChange = { busqueda = it },
+                placeholder = { Text("Buscar") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(start = 12.dp, end = 12.dp, top = 8.dp)
+            )
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
-                    value = busqueda,
-                    onValueChange = { busqueda = it },
-                    placeholder = { Text("Buscar") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
                 FilterChip(
                     selected = soloPorReponer,
                     onClick = { soloPorReponer = !soloPorReponer },
                     label = { Text("Por reponer (${estado.porReponer})") }
+                )
+                FilterChip(
+                    selected = soloCaducanPronto,
+                    onClick = { soloCaducanPronto = !soloCaducanPronto },
+                    label = { Text("Caducan pronto (${estado.caducanPronto(hoy)})") }
                 )
             }
 
@@ -186,6 +195,7 @@ fun PantallaInventario(viewModel: InventarioViewModel) {
                         items(articulos, key = { it.id ?: it.nombre }) { articulo ->
                             TarjetaArticulo(
                                 articulo = articulo,
+                                avisoCaducidad = articulo.avisoCaducidad(hoy),
                                 enListaCompra = estado.estaEnListaCompra(articulo),
                                 alCambiarCantidad = { viewModel.cambiarCantidad(articulo, it) },
                                 alCambiarEstado = { viewModel.cambiarEstado(articulo, it) },
@@ -260,6 +270,7 @@ private fun Centrado(contenido: @Composable () -> Unit) {
 @Composable
 private fun TarjetaArticulo(
     articulo: Articulo,
+    avisoCaducidad: AvisoCaducidad?,
     enListaCompra: Boolean,
     alCambiarCantidad: (Int) -> Unit,
     alCambiarEstado: (EstadoArticulo) -> Unit,
@@ -280,6 +291,14 @@ private fun TarjetaArticulo(
                     )
                     articulo.ubicacion?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    }
+                    avisoCaducidad?.let {
+                        Text(
+                            text = it.texto,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = if (it.urgente) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (it.urgente) ColorNoHay else MaterialTheme.colorScheme.outline
+                        )
                     }
                 }
                 FilledTonalIconButton(

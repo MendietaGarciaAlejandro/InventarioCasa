@@ -3,6 +3,7 @@ package com.example.inventariocasa.datos
 import com.example.inventariocasa.modelo.Articulo
 import com.example.inventariocasa.modelo.EstadoArticulo
 import com.squareup.moshi.Json
+import java.time.LocalDate
 
 // Las columnas de Supabase están en inglés porque la base de datos se comparte con la
 // app de la compra y la web. @Json marca esa frontera: de aquí hacia dentro, en español.
@@ -13,7 +14,9 @@ data class ArticuloDto(
     @Json(name = "category") val categoria: String = "General",
     @Json(name = "quantity") val cantidad: Int = 0,
     @Json(name = "status") val estado: String = "ok",
-    @Json(name = "location") val ubicacion: String? = null
+    @Json(name = "location") val ubicacion: String? = null,
+    @Json(name = "expires_at") val caducidad: String? = null,
+    @Json(name = "barcode") val codigoBarras: String? = null
 ) {
     fun aModelo() = Articulo(
         id = id,
@@ -21,7 +24,10 @@ data class ArticuloDto(
         categoria = categoria,
         cantidad = cantidad,
         estado = EstadoArticulo.desdeApi(estado),
-        ubicacion = ubicacion
+        ubicacion = ubicacion,
+        // Una fecha que no se entiende no debe tirar la carga entera del inventario
+        caducidad = caducidad?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+        codigoBarras = codigoBarras
     )
 }
 
@@ -41,5 +47,6 @@ fun Articulo.aCampos(): Map<String, Any?> = mapOf(
     "category" to categoria,
     "quantity" to cantidad,
     "status" to estado.valorApi,
-    "location" to ubicacion
+    "location" to ubicacion,
+    "expires_at" to caducidad?.toString()
 )
