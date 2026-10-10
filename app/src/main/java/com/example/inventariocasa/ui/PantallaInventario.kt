@@ -20,8 +20,10 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +42,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -48,11 +51,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,13 +68,17 @@ import com.example.inventariocasa.modelo.EstadoArticulo
 import com.example.inventariocasa.ui.tema.ColorHay
 import com.example.inventariocasa.ui.tema.ColorNoHay
 import com.example.inventariocasa.ui.tema.ColorQuedaPoco
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PantallaInventario(viewModel: InventarioViewModel) {
     val estado by viewModel.estado.collectAsState()
+    val escaneo by viewModel.escaneo.collectAsState()
     val avisos = remember { SnackbarHostState() }
+    val contexto = LocalContext.current
+    val ambito = rememberCoroutineScope()
 
     var soloPorReponer by rememberSaveable { mutableStateOf(false) }
     var soloCaducanPronto by rememberSaveable { mutableStateOf(false) }
@@ -77,6 +86,17 @@ fun PantallaInventario(viewModel: InventarioViewModel) {
     var busqueda by rememberSaveable { mutableStateOf("") }
     var mostrarAlta by remember { mutableStateOf(false) }
     var enEdicion by remember { mutableStateOf<Articulo?>(null) }
+    var altaConCodigo by remember { mutableStateOf<Escaneo.Nuevo?>(null) }
+
+    val escanear: () -> Unit = {
+        ambito.launch {
+            when (val lectura = escanearCodigo(contexto)) {
+                is LecturaEscaner.Leido -> viewModel.codigoEscaneado(lectura.codigo)
+                is LecturaEscaner.Fallo -> avisos.showSnackbar(lectura.mensaje)
+                LecturaEscaner.Cancelado -> Unit
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.avisos.collect { avisos.showSnackbar(it) }
@@ -103,6 +123,9 @@ fun PantallaInventario(viewModel: InventarioViewModel) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = escanear) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Escanear código de barras")
+                    }
                     IconButton(
                         onClick = viewModel::apuntarTodoLoQueFalta,
                         enabled = estado.porReponer > 0
@@ -242,6 +265,73 @@ fun PantallaInventario(viewModel: InventarioViewModel) {
             alCerrar = { enEdicion = null }
         )
     }
+
+    when (val actual = escaneo) {
+        null -> Unit
+
+        Escaneo.Buscando -> DialogoBuscandoCodigo()
+
+        is Escaneo.Conocido -> {
+            // Se lee del estado en cada pintado para que + / − se vean al momento
+            val articulo = estado.articulos.firstOrNull { it.id == actual.idArticulo }
+            if (articulo == null) {
+                LaunchedEffect(actual) { viewModel.cerrarEscaneo() }
+            } else {
+                AlertDialog(
+                    onDismissRequest = viewModel::cerrarEscaneo,
+                    text = {
+                        TarjetaArticulo(
+                            articulo = articulo,
+                            avisoCaducidad = articulo.avisoCaducidad(hoy),
+                            enListaCompra = estado.estaEnListaCompra(articulo),
+                            alCambiarCantidad = { viewModel.cambiarCantidad(articulo, it) },
+                            alCambiarEstado = { viewModel.cambiarEstado(articulo, it) },
+                            alApuntar = { viewModel.apuntarEnListaCompra(articulo) },
+                            alEditar = {
+                                viewModel.cerrarEscaneo()
+                                enEdicion = articulo
+                            }
+                        )
+                    },
+                    confirmButton = { TextButton(onClick = viewModel::cerrarEscaneo) { Text("Listo") } },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            viewModel.cerrarEscaneo()
+                            escanear()
+                        }) { Text("Escanear otro") }
+                    }
+                )
+            }
+        }
+
+        is Escaneo.Nuevo -> DialogoCodigoNuevo(
+            codigo = actual.codigo,
+            propuesta = actual.propuesta,
+            articulos = estado.articulos,
+            alCrear = {
+                altaConCodigo = actual
+                viewModel.cerrarEscaneo()
+            },
+            alVincular = { viewModel.vincularCodigo(actual.codigo, it) },
+            alCerrar = viewModel::cerrarEscaneo
+        )
+    }
+
+    altaConCodigo?.let { pendiente ->
+        FormularioArticulo(
+            original = null,
+            categorias = categorias,
+            ubicaciones = ubicaciones,
+            alGuardar = {
+                viewModel.anadir(it, codigo = pendiente.codigo)
+                altaConCodigo = null
+            },
+            alBorrar = null,
+            alCerrar = { altaConCodigo = null },
+            nombrePropuesto = pendiente.propuesta?.nombre.orEmpty(),
+            nota = pendiente.propuesta?.detalle
+        )
+    }
 }
 
 private fun resumen(estado: EstadoPantalla): String {
@@ -268,7 +358,7 @@ private fun Centrado(contenido: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TarjetaArticulo(
+internal fun TarjetaArticulo(
     articulo: Articulo,
     avisoCaducidad: AvisoCaducidad?,
     enListaCompra: Boolean,

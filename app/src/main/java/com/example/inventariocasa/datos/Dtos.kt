@@ -15,8 +15,7 @@ data class ArticuloDto(
     @Json(name = "quantity") val cantidad: Int = 0,
     @Json(name = "status") val estado: String = "ok",
     @Json(name = "location") val ubicacion: String? = null,
-    @Json(name = "expires_at") val caducidad: String? = null,
-    @Json(name = "barcode") val codigoBarras: String? = null
+    @Json(name = "expires_at") val caducidad: String? = null
 ) {
     fun aModelo() = Articulo(
         id = id,
@@ -26,10 +25,15 @@ data class ArticuloDto(
         estado = EstadoArticulo.desdeApi(estado),
         ubicacion = ubicacion,
         // Una fecha que no se entiende no debe tirar la carga entera del inventario
-        caducidad = caducidad?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
-        codigoBarras = codigoBarras
+        caducidad = caducidad?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
     )
 }
+
+/** Un código de barras y el artículo del inventario al que pertenece. */
+data class CodigoBarrasDto(
+    @Json(name = "barcode") val codigo: String,
+    @Json(name = "inventory_id") val idArticulo: String
+)
 
 /** Fila de la lista de la compra. Solo interesa el nombre, para saber qué está ya apuntado. */
 data class ProductoListaDto(

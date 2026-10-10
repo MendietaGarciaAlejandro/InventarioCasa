@@ -10,7 +10,10 @@ data class FotoInventario(
     val nombresEnListaCompra: Set<String>
 )
 
-class RepositorioInventario(private val cliente: ClienteSupabase = ClienteSupabase()) {
+class RepositorioInventario(
+    private val cliente: ClienteSupabase = ClienteSupabase(),
+    private val catalogo: CatalogoProductos = CatalogoProductos()
+) {
 
     val estaConfigurado: Boolean get() = cliente.estaConfigurado
 
@@ -21,8 +24,21 @@ class RepositorioInventario(private val cliente: ClienteSupabase = ClienteSupaba
         )
     }
 
-    suspend fun crear(articulo: Articulo) = withContext(Dispatchers.IO) {
+    suspend fun crear(articulo: Articulo): String? = withContext(Dispatchers.IO) {
         cliente.crearArticulo(articulo.aCampos())
+    }
+
+    suspend fun idArticuloDeCodigo(codigo: String): String? = withContext(Dispatchers.IO) {
+        cliente.idArticuloDeCodigo(codigo)
+    }
+
+    suspend fun vincularCodigo(codigo: String, idArticulo: String) = withContext(Dispatchers.IO) {
+        cliente.vincularCodigo(codigo, idArticulo)
+    }
+
+    // El catálogo es una ayuda, no un requisito: si falla, se sigue sin propuesta de nombre
+    suspend fun consultarCatalogo(codigo: String): ProductoCatalogo? = withContext(Dispatchers.IO) {
+        runCatching { catalogo.buscar(codigo) }.getOrNull()
     }
 
     suspend fun actualizar(articulo: Articulo) = withContext(Dispatchers.IO) {

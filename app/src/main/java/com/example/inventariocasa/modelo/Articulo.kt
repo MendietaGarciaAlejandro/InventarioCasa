@@ -31,9 +31,7 @@ data class Articulo(
     val estado: EstadoArticulo = EstadoArticulo.HAY,
     val ubicacion: String? = null,
     // Una sola fecha por artículo: la de la unidad que antes caduca
-    val caducidad: LocalDate? = null,
-    // Sin uso todavía; reservado para cuando se escanee con la cámara
-    val codigoBarras: String? = null
+    val caducidad: LocalDate? = null
 ) {
     val hayQueReponer: Boolean get() = estado != EstadoArticulo.HAY
 

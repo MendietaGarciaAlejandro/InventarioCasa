@@ -76,6 +76,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
+    implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
 }

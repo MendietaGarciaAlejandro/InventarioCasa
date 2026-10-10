@@ -3,6 +3,7 @@ package com.example.inventariocasa.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.inventariocasa.datos.ErrorSupabase
+import com.example.inventariocasa.datos.ProductoCatalogo
 import com.example.inventariocasa.datos.RepositorioInventario
 import com.example.inventariocasa.modelo.Articulo
 import com.example.inventariocasa.modelo.EstadoArticulo
@@ -31,6 +32,13 @@ data class EstadoPantalla(
         articulo.nombre.lowercase() in nombresEnListaCompra
 }
 
+/** En qué punto está un escaneo. Null en el ViewModel significa que no hay ninguno en marcha. */
+sealed interface Escaneo {
+    data object Buscando : Escaneo
+    data class Conocido(val idArticulo: String) : Escaneo
+    data class Nuevo(val codigo: String, val propuesta: ProductoCatalogo?) : Escaneo
+}
+
 class InventarioViewModel : ViewModel() {
 
     private val repositorio = RepositorioInventario()
@@ -40,6 +48,9 @@ class InventarioViewModel : ViewModel() {
 
     private val _avisos = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val avisos: SharedFlow<String> = _avisos.asSharedFlow()
+
+    private val _escaneo = MutableStateFlow<Escaneo?>(null)
+    val escaneo: StateFlow<Escaneo?> = _escaneo.asStateFlow()
 
     // Para que una recarga que iba de camino no pise un cambio recién pintado:
     // si mientras se pedían los datos alguien tocó algo, esa respuesta ya es vieja.
@@ -88,18 +99,62 @@ class InventarioViewModel : ViewModel() {
 
     fun guardarEdicion(articulo: Articulo) = guardarCambio(articulo)
 
-    /** Si ya hay un artículo con ese nombre, se le suma la cantidad en vez de duplicarlo. */
-    fun anadir(nuevo: Articulo) {
+    /**
+     * Si ya hay un artículo con ese nombre, se le suma la cantidad en vez de duplicarlo.
+     * Con [codigo], el artículo que resulte se queda asociado a ese código de barras.
+     */
+    fun anadir(nuevo: Articulo, codigo: String? = null) {
         val existente = _estado.value.articulos.firstOrNull { it.nombre.equals(nuevo.nombre, ignoreCase = true) }
         if (existente != null) {
             guardarCambio(
                 existente
                     .conCantidad(existente.cantidad + nuevo.cantidad)
-                    .copy(ubicacion = nuevo.ubicacion ?: existente.ubicacion)
+                    .copy(
+                        ubicacion = nuevo.ubicacion ?: existente.ubicacion,
+                        caducidad = nuevo.caducidad ?: existente.caducidad
+                    )
             )
+            if (codigo != null && existente.id != null) {
+                ejecutar { repositorio.vincularCodigo(codigo, existente.id) }
+            }
             return
         }
-        ejecutar { repositorio.crear(nuevo.conCantidad(nuevo.cantidad)) }
+        ejecutar {
+            val id = repositorio.crear(nuevo.conCantidad(nuevo.cantidad))
+            if (codigo != null && id != null) repositorio.vincularCodigo(codigo, id)
+        }
+    }
+
+    // ── Código de barras ─────────────────────────────────────────────────────
+
+    /** Lo primero es mirar si el código ya es de casa; solo si no, se pregunta al catálogo. */
+    fun codigoEscaneado(codigo: String) {
+        _escaneo.value = Escaneo.Buscando
+        viewModelScope.launch {
+            try {
+                val idArticulo = repositorio.idArticuloDeCodigo(codigo)
+                if (idArticulo != null) recargar()
+                val esDeCasa = idArticulo != null && _estado.value.articulos.any { it.id == idArticulo }
+                _escaneo.value =
+                    if (esDeCasa) Escaneo.Conocido(idArticulo!!)
+                    else Escaneo.Nuevo(codigo, repositorio.consultarCatalogo(codigo))
+            } catch (e: Exception) {
+                _escaneo.value = null
+                _avisos.tryEmit(describir(e))
+            }
+        }
+    }
+
+    fun vincularCodigo(codigo: String, articulo: Articulo) {
+        val idArticulo = articulo.id ?: return
+        _escaneo.value = Escaneo.Conocido(idArticulo)
+        ejecutar(avisoAlTerminar = "Código asociado a \"${articulo.nombre}\"") {
+            repositorio.vincularCodigo(codigo, idArticulo)
+        }
+    }
+
+    fun cerrarEscaneo() {
+        _escaneo.value = null
     }
 
     fun borrar(articulo: Articulo) {
@@ -155,7 +210,7 @@ class InventarioViewModel : ViewModel() {
 
     private fun describir(e: Exception): String = when {
         e is ErrorSupabase && e.codigo == 404 ->
-            "Falta crear la tabla del inventario en Supabase"
+            "La base de datos no está al día: falta ejecutar el último schema.sql"
         e is ErrorSupabase && e.codigo == 400 ->
             "La base de datos no está al día: falta ejecutar el último schema.sql"
         e is ErrorSupabase && e.codigo == 409 ->

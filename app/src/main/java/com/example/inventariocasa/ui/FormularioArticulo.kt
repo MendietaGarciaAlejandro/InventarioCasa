@@ -46,9 +46,12 @@ fun FormularioArticulo(
     ubicaciones: List<String>,
     alGuardar: (Articulo) -> Unit,
     alBorrar: (() -> Unit)?,
-    alCerrar: () -> Unit
+    alCerrar: () -> Unit,
+    // Al dar de alta desde un código escaneado: lo que propone el catálogo
+    nombrePropuesto: String = "",
+    nota: String? = null
 ) {
-    var nombre by remember { mutableStateOf(original?.nombre.orEmpty()) }
+    var nombre by remember { mutableStateOf(original?.nombre ?: nombrePropuesto) }
     var cantidad by remember { mutableStateOf((original?.cantidad ?: 1).toString()) }
     var categoria by remember { mutableStateOf(original?.categoria ?: "General") }
     var ubicacion by remember { mutableStateOf(original?.ubicacion.orEmpty()) }
@@ -62,6 +65,9 @@ fun FormularioArticulo(
         title = { Text(if (original == null) "Nuevo artículo" else "Editar artículo") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                nota?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                }
                 OutlinedTextField(
                     value = nombre,
                     onValueChange = { nombre = it },

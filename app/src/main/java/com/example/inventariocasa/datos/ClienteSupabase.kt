@@ -39,6 +39,7 @@ class ClienteSupabase {
     private val articulos: JsonAdapter<List<ArticuloDto>> = listaDe(ArticuloDto::class.java)
     private val productosLista: JsonAdapter<List<ProductoListaDto>> = listaDe(ProductoListaDto::class.java)
     private val historial: JsonAdapter<List<HistorialDto>> = listaDe(HistorialDto::class.java)
+    private val codigos: JsonAdapter<List<CodigoBarrasDto>> = listaDe(CodigoBarrasDto::class.java)
 
     // serializeNulls: al quitar la ubicación hay que mandar "location": null, no omitirla
     private val campos: JsonAdapter<Map<String, Any?>> = moshi
@@ -58,9 +59,14 @@ class ClienteSupabase {
         return articulos.fromJson(ejecutar(peticion(url).get().build())).orEmpty()
     }
 
-    fun crearArticulo(valores: Map<String, Any?>) {
+    /** Devuelve el id que le ha puesto la base de datos, que hace falta para colgarle un código. */
+    fun crearArticulo(valores: Map<String, Any?>): String? {
         val cuerpo = campos.toJson(valores).toRequestBody(json)
-        ejecutar(peticion(url("inventory")).post(cuerpo).build())
+        val peticion = peticion(url("inventory"))
+            .addHeader("Prefer", "return=representation")
+            .post(cuerpo)
+            .build()
+        return articulos.fromJson(ejecutar(peticion)).orEmpty().firstOrNull()?.id
     }
 
     fun actualizarArticulo(id: String, valores: Map<String, Any?>) {
@@ -72,6 +78,27 @@ class ClienteSupabase {
     fun borrarArticulo(id: String) {
         val url = url("inventory") { addQueryParameter("id", "eq.$id") }
         ejecutar(peticion(url).delete().build())
+    }
+
+    // ── Códigos de barras ────────────────────────────────────────────────────
+
+    fun idArticuloDeCodigo(codigo: String): String? {
+        val url = url("inventory_barcodes") {
+            addQueryParameter("select", "barcode,inventory_id")
+            addQueryParameter("barcode", "eq.$codigo")
+        }
+        return codigos.fromJson(ejecutar(peticion(url).get().build())).orEmpty().firstOrNull()?.idArticulo
+    }
+
+    /** Si el código ya estaba colgado de otro artículo, pasa a este (la última palabra manda). */
+    fun vincularCodigo(codigo: String, idArticulo: String) {
+        val url = url("inventory_barcodes") { addQueryParameter("on_conflict", "barcode") }
+        val cuerpo = campos.toJson(mapOf("barcode" to codigo, "inventory_id" to idArticulo)).toRequestBody(json)
+        val peticion = peticion(url)
+            .addHeader("Prefer", "resolution=merge-duplicates")
+            .post(cuerpo)
+            .build()
+        ejecutar(peticion)
     }
 
     // ── Lista de la compra (tablas de la otra app) ───────────────────────────

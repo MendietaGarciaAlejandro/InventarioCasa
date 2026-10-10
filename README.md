@@ -11,6 +11,7 @@ Comparte base de datos (Supabase) con la app de la lista de la compra y con su w
 - Fecha de caducidad opcional, con aviso cuando falta una semana o menos
 - Apuntar un artículo en la lista de la compra con un toque, o todo lo que falta de una vez
 - Filtro de "por reponer" y búsqueda
+- Escanear el código de barras de un producto para encontrarlo o darlo de alta
 
 ## Cómo se habla con la app de la compra
 
@@ -19,6 +20,17 @@ Comparte base de datos (Supabase) con la app de la lista de la compra y con su w
 - Desde aquí se escribe en la lista de la compra cuando algo se acaba.
 
 Los productos se cruzan por nombre. Es el punto débil: "Leche" y "Leche entera" son dos cosas distintas.
+
+## Códigos de barras
+
+Un código de barras es solo un número; no dice qué producto es. La app lo resuelve en dos pasos:
+
+1. Mira si ese código ya está asociado a un artículo del inventario (tabla `inventory_barcodes`). Si lo está, abre ese artículo.
+2. Si es la primera vez, pregunta a [Open Food Facts](https://world.openfoodfacts.org), una base de datos abierta, y propone el nombre que tenga. A partir de ahí se crea un artículo nuevo o se asocia el código a uno que ya existía.
+
+Un artículo puede tener varios códigos (otra marca, otro tamaño), porque en casa "Leche" es "Leche" sea de la marca que sea. Lo que no cubre Open Food Facts (droguería, productos poco comunes) se nombra a mano la primera vez.
+
+El escáner es el de Google Play Services: la app no pide permiso de cámara, pero necesita un móvil con Play Services.
 
 ## Decisiones
 
@@ -40,5 +52,5 @@ La tabla `inventory` y el trigger están en el `schema.sql` del repositorio de l
 
 ## Pendiente
 
-- Código de barras, para dejar de depender del nombre (la columna ya existe en la base de datos)
+- Usar el código de barras también al comprar, para que la lista y el inventario dejen de cruzarse solo por nombre
 - Login: ahora mismo la base de datos está abierta con la clave anónima

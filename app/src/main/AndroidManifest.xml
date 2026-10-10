@@ -10,6 +10,12 @@
         android:roundIcon="@mipmap/ic_inventario"
         android:supportsRtl="true"
         android:theme="@style/Theme.InventarioCasa">
+        <!-- Pide a Play Services que baje el módulo del escáner al instalar la app,
+             en vez de la primera vez que se pulsa el botón -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
