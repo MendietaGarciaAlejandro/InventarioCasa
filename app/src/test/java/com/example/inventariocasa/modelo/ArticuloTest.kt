@@ -108,4 +108,11 @@ class ArticuloTest {
         assertNull(conFecha.conEstado(EstadoArticulo.NO_HAY).caducidad)
         assertEquals(hoy.plusDays(3), conFecha.conCantidad(1).caducidad)
     }
+
+    @Test
+    fun `un codigo de 12 cifras se guarda como ean13 con un cero delante`() {
+        assertEquals("0036000291452", normalizarCodigo("036000291452"))
+        assertEquals("8480000109088", normalizarCodigo("8480000109088"))
+        assertEquals("96385074", normalizarCodigo(" 96385074 "))
+    }
 }

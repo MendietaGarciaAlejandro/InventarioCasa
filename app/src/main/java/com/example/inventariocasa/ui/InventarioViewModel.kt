@@ -7,6 +7,7 @@ import com.example.inventariocasa.datos.ProductoCatalogo
 import com.example.inventariocasa.datos.RepositorioInventario
 import com.example.inventariocasa.modelo.Articulo
 import com.example.inventariocasa.modelo.EstadoArticulo
+import com.example.inventariocasa.modelo.normalizarCodigo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,7 +129,8 @@ class InventarioViewModel : ViewModel() {
     // ── Código de barras ─────────────────────────────────────────────────────
 
     /** Lo primero es mirar si el código ya es de casa; solo si no, se pregunta al catálogo. */
-    fun codigoEscaneado(codigo: String) {
+    fun codigoEscaneado(leido: String) {
+        val codigo = normalizarCodigo(leido)
         _escaneo.value = Escaneo.Buscando
         viewModelScope.launch {
             try {

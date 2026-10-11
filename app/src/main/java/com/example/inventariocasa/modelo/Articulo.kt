@@ -87,3 +87,13 @@ data class Articulo(
 // siendo dos productos distintos al cruzar el inventario con la lista.
 fun normalizarNombre(nombre: String): String =
     nombre.trim().replaceFirstChar { it.uppercase() }
+
+/**
+ * Deja el código de barras en su forma de 13 cifras. Un UPC-A (12 cifras, productos americanos)
+ * es el mismo código que un EAN-13 con un cero delante, y cada lector lo devuelve de una manera:
+ * sin esto, el mismo producto escaneado aquí y en la web serían dos códigos distintos.
+ */
+fun normalizarCodigo(codigo: String): String {
+    val limpio = codigo.trim()
+    return if (limpio.length == 12 && limpio.all { it.isDigit() }) "0$limpio" else limpio
+}
