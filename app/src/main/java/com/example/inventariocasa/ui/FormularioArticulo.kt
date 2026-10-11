@@ -57,6 +57,7 @@ fun FormularioArticulo(
     var ubicacion by remember { mutableStateOf(original?.ubicacion.orEmpty()) }
     var caducidad by remember { mutableStateOf(original?.caducidad) }
     var eligiendoFecha by remember { mutableStateOf(false) }
+    var confirmandoBorrado by remember { mutableStateOf(false) }
 
     val frases = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
 
@@ -96,7 +97,8 @@ fun FormularioArticulo(
                 OutlinedTextField(
                     value = ubicacion,
                     onValueChange = { ubicacion = it },
-                    label = { Text("Dónde está (nevera, despensa…)") },
+                    label = { Text("Dónde está") },
+                    placeholder = { Text("Nevera, despensa…") },
                     singleLine = true,
                     keyboardOptions = frases,
                     modifier = Modifier.fillMaxWidth()
@@ -131,7 +133,7 @@ fun FormularioArticulo(
         dismissButton = {
             Row {
                 if (alBorrar != null) {
-                    TextButton(onClick = alBorrar) {
+                    TextButton(onClick = { confirmandoBorrado = true }) {
                         Text("Eliminar", color = MaterialTheme.colorScheme.error)
                     }
                 }
@@ -139,6 +141,19 @@ fun FormularioArticulo(
             }
         }
     )
+
+    // Borrar no tiene vuelta atrás y se lleva los códigos de barras asociados: se pregunta antes
+    if (confirmandoBorrado && alBorrar != null) {
+        AlertDialog(
+            onDismissRequest = { confirmandoBorrado = false },
+            title = { Text("¿Eliminar ${original?.nombre.orEmpty()}?") },
+            text = { Text("Se quita del inventario junto con sus códigos de barras. Si solo se ha acabado, márcalo como \"No hay\".") },
+            confirmButton = {
+                TextButton(onClick = alBorrar) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmandoBorrado = false }) { Text("Cancelar") } }
+        )
+    }
 
     if (eligiendoFecha) {
         SelectorDeFecha(
