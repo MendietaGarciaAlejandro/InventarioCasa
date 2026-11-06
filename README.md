@@ -53,4 +53,3 @@ La tabla `inventory` y el trigger están en el `schema.sql` del repositorio de l
 ## Pendiente
 
 - Usar el código de barras también al comprar, para que la lista y el inventario dejen de cruzarse solo por nombre
-- Login: ahora mismo la base de datos está abierta con la clave anónima
